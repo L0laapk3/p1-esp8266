@@ -13,11 +13,20 @@
 #define SERIAL_BITS SERIAL_8N1
 #endif
 
+
+// Uncomment and fill in the next 4 lines to use a static IP address
+// #define STATIC_IP
+// IPAddress ip(192, 168, 0, 253);
+// IPAddress gateway(192, 168, 0, 1);
+// IPAddress subnet(255, 255, 255, 0);
+
 WiFiServer server(23);
 WiFiClient current_client;
 
 #define IDEAL_PACKET_SIZE 1024
 void setup() {
+	pinMode(LED_BUILTIN, OUTPUT);
+	digitalWrite(LED_BUILTIN, !HIGH);
     // we start a serial, but invert it
     Serial.begin(SERIAL_RATE, SERIAL_BITS, SERIAL_RX_ONLY, 1, true);
     // we use the internal buffer of the serial class and send from that when we can
@@ -30,14 +39,10 @@ void setup() {
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.hostname(hostname.c_str());
+#ifdef STATIC_IP
+    WiFi.config(ip, gateway, subnet);
+#endif
     WiFi.begin(WIFI_ACCESPOINT, WIFI_PASSWORD);
-    for (int i = 0 ; i < 20; i++) {
-        if (WiFi.status() == WL_CONNECTED) {
-            break;
-        }
-        Serial.println("No WIFI connection yet");
-        delay(500);
-    }
     server.begin();
     server.setNoDelay(true);
 
@@ -54,6 +59,14 @@ unsigned long lastOTACheck = 0;
 #endif
 
 void loop() {
+
+    while (WiFi.status() != WL_CONNECTED) {
+		delay(200);
+		digitalWrite(LED_BUILTIN, !HIGH);
+        delay(50);
+		digitalWrite(LED_BUILTIN, !LOW);
+    }
+
     auto now = millis();
 
     auto available = Serial.peekAvailable();
@@ -63,9 +76,15 @@ void loop() {
             auto written = current_client.write(buffer, available);
             Serial.peekConsume(written);
             lastUpdate = now;
+            if (written > 0)
+                digitalWrite(LED_BUILTIN, !HIGH);
         }
         else {
-            Serial.peekConsume(0);
+            Serial.peekConsume(available);
+			delay(550);
+			digitalWrite(LED_BUILTIN, !HIGH);
+			delay(50);
+			digitalWrite(LED_BUILTIN, !LOW);
         }
     }
     if (server.hasClient()) {
